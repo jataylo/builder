@@ -124,7 +124,10 @@ do
     OS_SO_FILES[${#OS_SO_FILES[@]}]="$lib_file"
 done
 
-# Calculate library paths
+# Calculate library paths - haven't tested for previous builds
+# - May break if two options
+# - doesn't cover .so with no suffix - regex breaks
+# - Magma and others may not appear in ldconfig
 ROCM_SO_PATHS=()
 ROCM_SO_FILES=()
 for lib in "${ROCM_SO_NAMES[@]}"
@@ -148,13 +151,13 @@ DEPS_SONAME=(
 )
 
 DEPS_AUX_SRCLIST=(
-    ${ROCBLAS_LIB_FILES[*]}
+    "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_SRC/}"
     "$ROCBLAS_LIB_SRC/TensileLibrary.dat"
     "/opt/amdgpu/share/libdrm/amdgpu.ids"
 )
 
 DEPS_AUX_DSTLIST=(
-    ${ROCBLAS_LIB_FILES[*]}
+    "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_DST/}"
     "$ROCBLAS_LIB_DST/TensileLibrary.dat"
     "share/libdrm/amdgpu.ids"
 )
