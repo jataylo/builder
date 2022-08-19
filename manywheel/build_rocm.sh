@@ -70,6 +70,21 @@ elif [[ "$OS_NAME" == *"Ubuntu"* ]]; then
     MAYBE_LIB64=lib
 fi
 
+# Env variables
+ROCM_HOME=/opt/rocm         # Why don't we have this already?
+ROCBLAS_LIB_SRC=$ROCM_HOME/lib/rocblas/library
+ROCBLAS_LIB_DST=lib/rocblas/library
+
+# ROCBLAS library files
+ARCH=$(echo $PYTORCH_ROCM_ARCH | sed 's/;/|/g')
+KERNEL_FILES=$(ls -l $ROCBLAS_LIB_SRC | \
+               grep -Eo Kernels.\* | \
+               grep -E $ARCH)
+TENSILE_FILES=$(ls -l $ROCBLAS_LIB_SRC | \
+               grep -Eo Tensile.\* | \
+               grep -E $ARCH)
+ROCBLAS_LIB_FILES=($KERNEL_FILES $TENSILE_FILES)
+
 # To make version comparison easier, create an integer representation.
 ROCM_VERSION_CLEAN=$(echo ${ROCM_VERSION} | sed s/rocm//)
 save_IFS="$IFS"
@@ -89,496 +104,84 @@ else
 fi
 ROCM_INT=$(($ROCM_VERSION_MAJOR * 10000 + $ROCM_VERSION_MINOR * 100 + $ROCM_VERSION_PATCH))
 
-if [[ $ROCM_INT -ge 50200 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/lib/libMIOpen.so.1"
-    "/opt/rocm/lib/libamdhip64.so.5"
-    "/opt/rocm/lib/libhipblas.so.0"
-    "/opt/rocm/lib/libhipfft.so"
-    "/opt/rocm/lib/libhiprand.so.1"
-    "/opt/rocm/lib/libhipsparse.so.0"
-    "/opt/rocm/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/lib/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/lib/librccl.so.1"
-    "/opt/rocm/lib/librocblas.so.0"
-    "/opt/rocm/lib/librocfft-device-0.so.0"
-    "/opt/rocm/lib/librocfft-device-1.so.0"
-    "/opt/rocm/lib/librocfft-device-2.so.0"
-    "/opt/rocm/lib/librocfft-device-3.so.0"
-    "/opt/rocm/lib/librocfft.so.0"
-    "/opt/rocm/lib/librocm_smi64.so.5"
-    "/opt/rocm/lib/librocrand.so.1"
-    "/opt/rocm/lib/librocsolver.so.0"
-    "/opt/rocm/lib/librocsparse.so.0"
-    "/opt/rocm/lib/libroctracer64.so.1"
-    "/opt/rocm/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.5"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.5"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx803.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx900.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx906.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx908.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx90a.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx1030.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/rocblas/library/Kernels.so-000-gfx803.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx900.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/rocblas/library/TensileLibrary_gfx803.co"
-    "lib/rocblas/library/TensileLibrary_gfx900.co"
-    "lib/rocblas/library/TensileLibrary_gfx906.co"
-    "lib/rocblas/library/TensileLibrary_gfx908.co"
-    "lib/rocblas/library/TensileLibrary_gfx90a.co"
-    "lib/rocblas/library/TensileLibrary_gfx1030.co"
-    "lib/rocblas/library/TensileLibrary_gfx803.dat"
-    "lib/rocblas/library/TensileLibrary_gfx900.dat"
-    "lib/rocblas/library/TensileLibrary_gfx906.dat"
-    "lib/rocblas/library/TensileLibrary_gfx908.dat"
-    "lib/rocblas/library/TensileLibrary_gfx90a.dat"
-    "lib/rocblas/library/TensileLibrary_gfx1030.dat"
-    "share/libdrm/amdgpu.ids"
-)
-elif [[ $ROCM_INT -ge 50100 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.5"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-0.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-1.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-2.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-3.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocm_smi/lib/librocm_smi64.so.5"
-    "/opt/rocm/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.5"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.5"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary_gfx90a.co"
-    "lib/library/TensileLibrary_gfx1030.co"
-    "lib/library/TensileLibrary.dat"
-    "share/libdrm/amdgpu.ids"
-)
-elif [[ $ROCM_INT -ge 50000 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.5"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/hiprand/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-0.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-1.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-2.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-3.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocm_smi/lib/librocm_smi64.so.5"
-    "/opt/rocm/rocrand/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.5"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.5"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary_gfx90a.co"
-    "lib/library/TensileLibrary_gfx1030.co"
-    "lib/library/TensileLibrary.dat"
-    "share/libdrm/amdgpu.ids"
-)
-elif [[ $ROCM_INT -ge 40500 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.4"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/hiprand/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-0.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-1.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-2.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-3.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocm_smi/lib/librocm_smi64.so.4"
-    "/opt/rocm/rocrand/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.4"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.4"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary_gfx90a.co"
-    "lib/library/TensileLibrary_gfx1030.co"
-    "lib/library/TensileLibrary.dat"
-    "share/libdrm/amdgpu.ids"
-)
-elif [[ $ROCM_INT -ge 40300 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.4"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/hiprand/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/${MAYBE_LIB64}/libhsakmt.so.1"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-misc.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-single.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-double.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocrand/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.4"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libhsakmt.so.1"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-misc.so.0"
-    "librocfft-device-single.so.0"
-    "librocfft-device-double.so.0"
-    "librocfft.so.0"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary.dat"
-)
-fi
-
-echo "PYTORCH_ROCM_ARCH: ${PYTORCH_ROCM_ARCH}"
-
-SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
-if [[ -z "$BUILD_PYTHONLESS" ]]; then
-    BUILD_SCRIPT=build_common.sh
+# Build specific libs
+if [[ $ROCM_INT -ge 40500 ]]; then
+    mapfile -t ROCM_SO_NAMES < output_files/40500_libs.txt
+    OS_SO_PATHS=($LIBGOMP_PATH, $LIBNUMA_PATH,\ 
+                 $LIBELF_PATH, $LIBTINFO_PATH, 
+                 $LIBDRM_PATH, $LIBDRM_AMDGPU_PATH)
 else
-    BUILD_SCRIPT=build_libtorch.sh
+    mapfile -t ROCM_SO_NAMES < output_files/40300_libs.txt
+    OS_SO_PATHS=($LIBGOMP_PATH, $LIBNUMA_PATH,\ 
+                 $LIBELF_PATH, $LIBTINFO_PATH)
 fi
-source $SCRIPTPATH/${BUILD_SCRIPT}
+
+# Get OS lib names from path
+OS_SO_FILES=()
+for lib in "${OS_SO_PATHS[@]}"
+do
+    lib_file=$(echo $lib | grep -o [^/]* | grep so)
+    OS_SO_FILES[${#OS_SO_FILES[@]}]="$lib_file"
+done
+
+# Calculate library paths
+ROCM_SO_PATHS=()
+ROCM_SO_FILES=()
+for lib in "${ROCM_SO_NAMES[@]}"
+do
+    lib_path=$(ldconfig -p | grep -E $lib | grep [0-9]$ | grep -Eo /opt/rocm.*)
+    lib_file=$(echo $lib_path | grep -o [^/]* | grep so)
+    if [[ -n "$lib_path" ]]; then
+        ROCM_SO_PATHS[${#ROCM_SO_PATHS[@]}]="$lib_path"
+        ROCM_SO_FILES[${#ROCM_SO_FILES[@]}]="$lib_file"
+    fi
+done
+
+DEPS_LIST=(
+    ${ROCM_SO_PATHS[*]}
+    ${OS_SO_PATHS[*]}
+)
+
+DEPS_SONAME=(
+    ${ROCM_SO_FILES[*]}
+    ${OS_SO_FILES[*]}
+)
+
+DEPS_AUX_SRCLIST=(
+    ${ROCBLAS_LIB_FILES[*]}
+    "$ROCBLAS_LIB_SRC/TensileLibrary.dat"
+    "/opt/amdgpu/share/libdrm/amdgpu.ids"
+)
+
+DEPS_AUX_DSTLIST=(
+    ${ROCBLAS_LIB_FILES[*]}
+    "$ROCBLAS_LIB_DST/TensileLibrary.dat"
+    "share/libdrm/amdgpu.ids"
+)
+
+echo "DEPS_LIST:" >| output_files/DEPS_LIST.txt
+echo "DEPS_SONAME:" >| output_files/DEPS_SONAME.txt
+echo "DEPS_AUX_SRCLIST:" >| output_files/DEPS_AUX_SRCLIST.txt
+echo "DEPS_AUX_DSTLIST:" >| output_files/DEPS_AUX_DSTLIST.txt
+
+for each in "${DEPS_LIST[@]}"
+do
+    echo "$each" >> output_files/DEPS_LIST.txt
+done
+
+for each in "${DEPS_SONAME[@]}"
+do
+    echo "$each" >> output_files/DEPS_SONAME.txt
+done
+
+for each in "${DEPS_AUX_SRCLIST[@]}"
+do
+    echo "$each" >> output_files/DEPS_AUX_SRCLIST.txt
+done
+
+for each in "${DEPS_AUX_DSTLIST[@]}"
+do
+    echo "$each" >> output_files/DEPS_AUX_DSTLIST.txt
+done
+
+echo "Complete"
