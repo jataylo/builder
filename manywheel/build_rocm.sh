@@ -2,7 +2,8 @@
 
 set -ex
 
-export MAGMA_HOME=/opt/rocm/magma
+export ROCM_HOME=/opt/rocm
+export MAGMA_HOME=$ROCM_HOME/magma
 # TODO: libtorch_cpu.so is broken when building with Debug info
 export BUILD_DEBUG_INFO=0
 
@@ -13,6 +14,10 @@ export USE_STATIC_NCCL=1
 export ATEN_STATIC_CUDA=1
 export USE_CUDA_STATIC_LINK=1
 export INSTALL_TEST=0 # dont install test binaries into site-packages
+
+# Env variables
+ROCBLAS_LIB_SRC=$ROCM_HOME/lib/rocblas/library
+ROCBLAS_LIB_DST=lib/rocblas/library
 
 # Keep an array of cmake variables to add to
 if [[ -z "$CMAKE_ARGS" ]]; then
@@ -51,29 +56,54 @@ if [[ -z "$PYTORCH_FINAL_PACKAGE_DIR" ]]; then
 fi
 mkdir -p "$PYTORCH_FINAL_PACKAGE_DIR" || true
 
+# Required ROCm libraries - dicitonary/conditionalise whole block again?
+ROCM_SO_NAMES=(
+    "libMIOpen.so"
+    "libamdhip64.so"
+    "libhipblas.so"
+    "libhipfft.so"
+    "libhiprand.so"
+    "libhipsparse.so"
+    "libhsa-runtime64.so"
+    "libamd_comgr.so"
+    "libmagma.so"
+    "librccl.so"
+    "librocblas.so"
+    "librocfft-device-0.so"
+    "librocfft-device-1.so"
+    "librocfft-device-2.so"
+    "librocfft-device-3.so"
+    "librocfft.so"
+    "librocm_smi64.so"
+    "librocrand.so"
+    "librocsolver.so"
+    "librocsparse.so"
+    "libroctracer64.so"
+    "libroctx64.so"
+)
+
+# OS specific paths
 OS_NAME=`awk -F= '/^NAME/{print $2}' /etc/os-release`
 if [[ "$OS_NAME" == *"CentOS Linux"* ]]; then
-    LIBGOMP_PATH="/usr/lib64/libgomp.so.1"
-    LIBNUMA_PATH="/usr/lib64/libnuma.so.1"
-    LIBELF_PATH="/usr/lib64/libelf.so.1"
-    LIBTINFO_PATH="/usr/lib64/libtinfo.so.5"
-    LIBDRM_PATH="/opt/amdgpu/lib64/libdrm.so.2"
-    LIBDRM_AMDGPU_PATH="/opt/amdgpu/lib64/libdrm_amdgpu.so.1"
+    LIBGOMP_PATH="/usr/lib64/libgomp.so"
+    LIBNUMA_PATH="/usr/lib64/libnuma.so"
+    LIBELF_PATH="/usr/lib64/libelf.so"
+    LIBTINFO_PATH="/usr/lib64/libtinfo.so"
+    LIBDRM_PATH="/opt/amdgpu/lib64/libdrm.so"
+    LIBDRM_AMDGPU_PATH="/opt/amdgpu/lib64/libdrm_amdgpu.so"
     MAYBE_LIB64=lib64
 elif [[ "$OS_NAME" == *"Ubuntu"* ]]; then
-    LIBGOMP_PATH="/usr/lib/x86_64-linux-gnu/libgomp.so.1"
-    LIBNUMA_PATH="/usr/lib/x86_64-linux-gnu/libnuma.so.1"
-    LIBELF_PATH="/usr/lib/x86_64-linux-gnu/libelf.so.1"
-    LIBTINFO_PATH="/lib/x86_64-linux-gnu/libtinfo.so.5"
-    LIBDRM_PATH="/usr/lib/x86_64-linux-gnu/libdrm.so.2"
-    LIBDRM_AMDGPU_PATH="/usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1"
+    LIBGOMP_PATH="/usr/lib/x86_64-linux-gnu/libgomp.so"
+    LIBNUMA_PATH="/usr/lib/x86_64-linux-gnu/libnuma.so"
+    LIBELF_PATH="/usr/lib/x86_64-linux-gnu/libelf.so"
+    LIBTINFO_PATH="/lib/x86_64-linux-gnu/libtinfo.so"
+    LIBDRM_PATH="/usr/lib/x86_64-linux-gnu/libdrm.so"
+    LIBDRM_AMDGPU_PATH="/usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so"
     MAYBE_LIB64=lib
 fi
-
-# Env variables
-ROCM_HOME=/opt/rocm         # Why don't we have this already?
-ROCBLAS_LIB_SRC=$ROCM_HOME/lib/rocblas/library
-ROCBLAS_LIB_DST=lib/rocblas/library
+OS_SO_PATHS=($LIBGOMP_PATH $LIBNUMA_PATH\ 
+             $LIBELF_PATH $LIBTINFO_PATH\
+             $LIBDRM_PATH $LIBDRM_AMDGPU_PATH)
 
 # ROCBLAS library files
 ARCH=$(echo $PYTORCH_ROCM_ARCH | sed 's/;/|/g')
@@ -83,6 +113,9 @@ KERNEL_FILES=$(ls -l $ROCBLAS_LIB_SRC | \
 TENSILE_FILES=$(ls -l $ROCBLAS_LIB_SRC | \
                grep -Eo Tensile.\* | \
                grep -E $ARCH)
+if [[ -n "$ROCBLAS_LIB_SRC/TensileLibrary.dat" ]]; then
+    TENSILE_FILES+=" TensileLibrary.dat"
+fi
 ROCBLAS_LIB_FILES=($KERNEL_FILES $TENSILE_FILES)
 
 # To make version comparison easier, create an integer representation.
@@ -104,40 +137,33 @@ else
 fi
 ROCM_INT=$(($ROCM_VERSION_MAJOR * 10000 + $ROCM_VERSION_MINOR * 100 + $ROCM_VERSION_PATCH))
 
-# Build specific libs
-if [[ $ROCM_INT -ge 40500 ]]; then
-    mapfile -t ROCM_SO_NAMES < output_files/40500_libs.txt
-    OS_SO_PATHS=($LIBGOMP_PATH, $LIBNUMA_PATH,\ 
-                 $LIBELF_PATH, $LIBTINFO_PATH, 
-                 $LIBDRM_PATH, $LIBDRM_AMDGPU_PATH)
-else
-    mapfile -t ROCM_SO_NAMES < output_files/40300_libs.txt
-    OS_SO_PATHS=($LIBGOMP_PATH, $LIBNUMA_PATH,\ 
-                 $LIBELF_PATH, $LIBTINFO_PATH)
-fi
-
-# Get OS lib names from path
+# Get OS lib names from path - TODO: make more readable
+# TODO: fine with a link instead of file
 OS_SO_FILES=()
 for lib in "${OS_SO_PATHS[@]}"
 do
-    lib_file=$(echo $lib | grep -o [^/]* | grep so)
-    OS_SO_FILES[${#OS_SO_FILES[@]}]="$lib_file"
+    path_list=($(tr "/" "\n" <<<"$lib")) && file_name=${path_list[-1]}
+    full_path=$(find "$(sed s:/[^/]*$:: <<<"$lib")" -type f -name "$file_name*")
+    if [[ -z $full_path ]]; then
+        full_path=$(find "$(sed s:/[^/]*$:: <<<"$lib")" -name "$file_name")
+    fi
+    path_list=($(tr "/" "\n" <<<"$full_path")) && file_name=${path_list[-1]}
+    OS_SO_PATHS[${#OS_SO_FILES[@]}]=$full_path
+    OS_SO_FILES[${#OS_SO_FILES[@]}]=$file_name
 done
 
-# Calculate library paths - haven't tested for previous builds
-# - May break if two options
-# - doesn't cover .so with no suffix - regex breaks
-# - Magma and others may not appear in ldconfig
+# Calculate ROCm library paths
 ROCM_SO_PATHS=()
 ROCM_SO_FILES=()
 for lib in "${ROCM_SO_NAMES[@]}"
 do
-    lib_path=$(ldconfig -p | grep -E $lib | grep [0-9]$ | grep -Eo /opt/rocm.*)
-    lib_file=$(echo $lib_path | grep -o [^/]* | grep so)
-    if [[ -n "$lib_path" ]]; then
-        ROCM_SO_PATHS[${#ROCM_SO_PATHS[@]}]="$lib_path"
-        ROCM_SO_FILES[${#ROCM_SO_FILES[@]}]="$lib_file"
+    full_path=$(find /opt/rocm/ -type f -name "$lib*")
+    path_list=($(tr "/" "\n" <<<"$full_path")) && file_name=${path_list[-1]}
+    if [[ -z $full_path ]]; then
+        full_path=$(find "$(sed s:/[^/]*$:: <<<"$lib")" -name "$file_name*")
     fi
+    ROCM_SO_PATHS[${#ROCM_SO_PATHS[@]}]="$full_path"
+    ROCM_SO_FILES[${#ROCM_SO_FILES[@]}]="$file_name"
 done
 
 DEPS_LIST=(
@@ -152,13 +178,11 @@ DEPS_SONAME=(
 
 DEPS_AUX_SRCLIST=(
     "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_SRC/}"
-    "$ROCBLAS_LIB_SRC/TensileLibrary.dat"
     "/opt/amdgpu/share/libdrm/amdgpu.ids"
 )
 
 DEPS_AUX_DSTLIST=(
     "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_DST/}"
-    "$ROCBLAS_LIB_DST/TensileLibrary.dat"
     "share/libdrm/amdgpu.ids"
 )
 
