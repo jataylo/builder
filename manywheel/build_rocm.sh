@@ -2,7 +2,8 @@
 
 set -ex
 
-export MAGMA_HOME=/opt/rocm/magma
+export ROCM_HOME=/opt/rocm
+export MAGMA_HOME=$ROCM_HOME/magma
 # TODO: libtorch_cpu.so is broken when building with Debug info
 export BUILD_DEBUG_INFO=0
 
@@ -89,6 +90,19 @@ else
 fi
 ROCM_INT=$(($ROCM_VERSION_MAJOR * 10000 + $ROCM_VERSION_MINOR * 100 + $ROCM_VERSION_PATCH))
 
+# ROCBLAS library files
+if [[ $ROCM_INT -ge 50200 ]]; then
+    ROCBLAS_LIB_SRC=$ROCM_HOME/lib/rocblas/library
+    ROCBLAS_LIB_DST=lib/rocblas/library
+else 
+    ROCBLAS_LIB_SRC=$ROCM_HOME/rocblas/lib/library
+    ROCBLAS_LIB_DST=lib/library
+fi
+ARCH=$(echo $PYTORCH_ROCM_ARCH | sed 's/;/|/g') # Replace ; seperated arch list to bar for grep
+ARCH_SPECIFIC_FILES=$(ls $ROCBLAS_LIB_SRC | grep -E $ARCH)
+OTHER_FILES=$(ls $ROCBLAS_LIB_SRC | grep -v gfx)
+ROCBLAS_LIB_FILES=($ARCH_SPECIFIC_FILES $OTHER_FILES)
+
 if [[ $ROCM_INT -ge 50200 ]]; then
 DEPS_LIST=(
     "/opt/rocm/lib/libMIOpen.so.1"
@@ -150,52 +164,6 @@ DEPS_SONAME=(
     "libtinfo.so.5"
     "libdrm.so.2"
     "libdrm_amdgpu.so.1"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/lib/rocblas/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx803.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx900.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx906.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx908.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx90a.dat"
-    "/opt/rocm/lib/rocblas/library/TensileLibrary_gfx1030.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/rocblas/library/Kernels.so-000-gfx803.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx900.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/rocblas/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/rocblas/library/TensileLibrary_gfx803.co"
-    "lib/rocblas/library/TensileLibrary_gfx900.co"
-    "lib/rocblas/library/TensileLibrary_gfx906.co"
-    "lib/rocblas/library/TensileLibrary_gfx908.co"
-    "lib/rocblas/library/TensileLibrary_gfx90a.co"
-    "lib/rocblas/library/TensileLibrary_gfx1030.co"
-    "lib/rocblas/library/TensileLibrary_gfx803.dat"
-    "lib/rocblas/library/TensileLibrary_gfx900.dat"
-    "lib/rocblas/library/TensileLibrary_gfx906.dat"
-    "lib/rocblas/library/TensileLibrary_gfx908.dat"
-    "lib/rocblas/library/TensileLibrary_gfx90a.dat"
-    "lib/rocblas/library/TensileLibrary_gfx1030.dat"
-    "share/libdrm/amdgpu.ids"
 )
 elif [[ $ROCM_INT -ge 50100 ]]; then
 DEPS_LIST=(
@@ -259,42 +227,6 @@ DEPS_SONAME=(
     "libdrm.so.2"
     "libdrm_amdgpu.so.1"
 )
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary_gfx90a.co"
-    "lib/library/TensileLibrary_gfx1030.co"
-    "lib/library/TensileLibrary.dat"
-    "share/libdrm/amdgpu.ids"
-)
 elif [[ $ROCM_INT -ge 50000 ]]; then
 DEPS_LIST=(
     "/opt/rocm/miopen/lib/libMIOpen.so.1"
@@ -356,42 +288,6 @@ DEPS_SONAME=(
     "libtinfo.so.5"
     "libdrm.so.2"
     "libdrm_amdgpu.so.1"
-)
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary_gfx90a.co"
-    "lib/library/TensileLibrary_gfx1030.co"
-    "lib/library/TensileLibrary.dat"
-    "share/libdrm/amdgpu.ids"
 )
 elif [[ $ROCM_INT -ge 40500 ]]; then
 DEPS_LIST=(
@@ -455,42 +351,6 @@ DEPS_SONAME=(
     "libdrm.so.2"
     "libdrm_amdgpu.so.1"
 )
-
-DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx1030.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx90a.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx1030.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
-    "/opt/amdgpu/share/libdrm/amdgpu.ids"
-)
-
-DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx90a-xnack+.hsaco"
-    "lib/library/Kernels.so-000-gfx1030.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary_gfx90a.co"
-    "lib/library/TensileLibrary_gfx1030.co"
-    "lib/library/TensileLibrary.dat"
-    "share/libdrm/amdgpu.ids"
-)
 elif [[ $ROCM_INT -ge 40300 ]]; then
 DEPS_LIST=(
     "/opt/rocm/miopen/lib/libMIOpen.so.1"
@@ -547,31 +407,17 @@ DEPS_SONAME=(
     "libelf.so.1"
     "libtinfo.so.5"
 )
+fi
 
 DEPS_AUX_SRCLIST=(
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx803.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx900.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx803.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx900.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx906.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary_gfx908.co"
-    "/opt/rocm/rocblas/lib/library/TensileLibrary.dat"
+    "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_SRC/}"
+    "/opt/amdgpu/share/libdrm/amdgpu.ids"
 )
 
 DEPS_AUX_DSTLIST=(
-    "lib/library/Kernels.so-000-gfx803.hsaco"
-    "lib/library/Kernels.so-000-gfx900.hsaco"
-    "lib/library/Kernels.so-000-gfx906-xnack-.hsaco"
-    "lib/library/Kernels.so-000-gfx908-xnack-.hsaco"
-    "lib/library/TensileLibrary_gfx803.co"
-    "lib/library/TensileLibrary_gfx900.co"
-    "lib/library/TensileLibrary_gfx906.co"
-    "lib/library/TensileLibrary_gfx908.co"
-    "lib/library/TensileLibrary.dat"
+    "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_DST/}"
+    "share/libdrm/amdgpu.ids"
 )
-fi
 
 echo "PYTORCH_ROCM_ARCH: ${PYTORCH_ROCM_ARCH}"
 
