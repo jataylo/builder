@@ -52,6 +52,33 @@ if [[ -z "$PYTORCH_FINAL_PACKAGE_DIR" ]]; then
 fi
 mkdir -p "$PYTORCH_FINAL_PACKAGE_DIR" || true
 
+# Required ROCm libraries
+ROCM_SO_FILES=(
+    "libMIOpen.so"
+    "libamdhip64.so"
+    "libhipblas.so"
+    "libhipfft.so"
+    "libhiprand.so"
+    "libhipsparse.so"
+    "libhsa-runtime64.so"
+    "libamd_comgr.so"
+    "libmagma.so"
+    "librccl.so"
+    "librocblas.so"
+    "librocfft-device-0.so"
+    "librocfft-device-1.so"
+    "librocfft-device-2.so"
+    "librocfft-device-3.so" 
+    "librocfft.so"
+    "librocm_smi64.so"   
+    "librocrand.so"
+    "librocsolver.so"
+    "librocsparse.so"
+    "libroctracer64.so"
+    "libroctx64.so"
+)
+
+
 OS_NAME=`awk -F= '/^NAME/{print $2}' /etc/os-release`
 if [[ "$OS_NAME" == *"CentOS Linux"* ]]; then
     LIBGOMP_PATH="/usr/lib64/libgomp.so.1"
@@ -70,6 +97,15 @@ elif [[ "$OS_NAME" == *"Ubuntu"* ]]; then
     LIBDRM_AMDGPU_PATH="/usr/lib/x86_64-linux-gnu/libdrm_amdgpu.so.1"
     MAYBE_LIB64=lib
 fi
+OS_SO_PATHS=($LIBGOMP_PATH $LIBNUMA_PATH\ 
+             $LIBELF_PATH $LIBTINFO_PATH\
+             $LIBDRM_PATH $LIBDRM_AMDGPU_PATH)
+OS_SO_FILES=()
+for lib in "${OS_SO_PATHS[@]}"
+do
+    file_name="${lib##*/}" # Substring removal of path to get filename
+    OS_SO_FILES[${#OS_SO_FILES[@]}]=$file_name # Append to array indexed by array size
+done
 
 # To make version comparison easier, create an integer representation.
 ROCM_VERSION_CLEAN=$(echo ${ROCM_VERSION} | sed s/rocm//)
@@ -103,311 +139,29 @@ ARCH_SPECIFIC_FILES=$(ls $ROCBLAS_LIB_SRC | grep -E $ARCH)
 OTHER_FILES=$(ls $ROCBLAS_LIB_SRC | grep -v gfx)
 ROCBLAS_LIB_FILES=($ARCH_SPECIFIC_FILES $OTHER_FILES)
 
-if [[ $ROCM_INT -ge 50200 ]]; then
+# ROCm lib files
+ROCM_SO_PATHS=()
+for lib in "${ROCM_SO_FILES[@]}"
+do
+    file_path=($(find $ROCM_HOME/lib/ -name "$lib")) # First search in lib
+    if [[ -z $file_path ]]; then 
+        file_path=($(find $ROCM_HOME/lib64/ -name "$lib")) # Then search in lib64
+    fi
+    if [[ -z $file_path ]]; then 
+        file_path=($(find $ROCM_HOME/ -name "$lib")) # Then search in ROCM_HOME
+    fi
+    ROCM_SO_PATHS[${#ROCM_SO_PATHS[@]}]="$file_path" # Append to array indexed by array size
+done
+
 DEPS_LIST=(
-    "/opt/rocm/lib/libMIOpen.so.1"
-    "/opt/rocm/lib/libamdhip64.so.5"
-    "/opt/rocm/lib/libhipblas.so.0"
-    "/opt/rocm/lib/libhipfft.so"
-    "/opt/rocm/lib/libhiprand.so.1"
-    "/opt/rocm/lib/libhipsparse.so.0"
-    "/opt/rocm/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/lib/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/lib/librccl.so.1"
-    "/opt/rocm/lib/librocblas.so.0"
-    "/opt/rocm/lib/librocfft-device-0.so.0"
-    "/opt/rocm/lib/librocfft-device-1.so.0"
-    "/opt/rocm/lib/librocfft-device-2.so.0"
-    "/opt/rocm/lib/librocfft-device-3.so.0"
-    "/opt/rocm/lib/librocfft.so.0"
-    "/opt/rocm/lib/librocm_smi64.so.5"
-    "/opt/rocm/lib/librocrand.so.1"
-    "/opt/rocm/lib/librocsolver.so.0"
-    "/opt/rocm/lib/librocsparse.so.0"
-    "/opt/rocm/lib/libroctracer64.so.1"
-    "/opt/rocm/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
+    ${ROCM_SO_PATHS[*]}
+    ${OS_SO_PATHS[*]}
 )
 
 DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.5"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.5"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
+    ${ROCM_SO_FILES[*]}
+    ${OS_SO_FILES[*]}
 )
-elif [[ $ROCM_INT -ge 50100 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.5"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-0.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-1.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-2.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-3.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocm_smi/lib/librocm_smi64.so.5"
-    "/opt/rocm/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.5"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.5"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-elif [[ $ROCM_INT -ge 50000 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.5"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/hiprand/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-0.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-1.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-2.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-3.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocm_smi/lib/librocm_smi64.so.5"
-    "/opt/rocm/rocrand/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.5"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.5"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-elif [[ $ROCM_INT -ge 40500 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.4"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/hiprand/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-0.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-1.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-2.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-3.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocm_smi/lib/librocm_smi64.so.4"
-    "/opt/rocm/rocrand/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-    "$LIBDRM_PATH"
-    "$LIBDRM_AMDGPU_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.4"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-0.so.0"
-    "librocfft-device-1.so.0"
-    "librocfft-device-2.so.0"
-    "librocfft-device-3.so.0"
-    "librocfft.so.0"
-    "librocm_smi64.so.4"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-    "libdrm.so.2"
-    "libdrm_amdgpu.so.1"
-)
-elif [[ $ROCM_INT -ge 40300 ]]; then
-DEPS_LIST=(
-    "/opt/rocm/miopen/lib/libMIOpen.so.1"
-    "/opt/rocm/hip/lib/libamdhip64.so.4"
-    "/opt/rocm/hipblas/lib/libhipblas.so.0"
-    "/opt/rocm/hipfft/lib/libhipfft.so"
-    "/opt/rocm/hiprand/lib/libhiprand.so.1"
-    "/opt/rocm/hipsparse/lib/libhipsparse.so.0"
-    "/opt/rocm/hsa/lib/libhsa-runtime64.so.1"
-    "/opt/rocm/${MAYBE_LIB64}/libamd_comgr.so.2"
-    "/opt/rocm/${MAYBE_LIB64}/libhsakmt.so.1"
-    "/opt/rocm/magma/lib/libmagma.so"
-    "/opt/rocm/rccl/lib/librccl.so.1"
-    "/opt/rocm/rocblas/lib/librocblas.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-misc.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-single.so.0"
-    "/opt/rocm/rocfft/lib/librocfft-device-double.so.0"
-    "/opt/rocm/rocfft/lib/librocfft.so.0"
-    "/opt/rocm/rocrand/lib/librocrand.so.1"
-    "/opt/rocm/rocsolver/lib/librocsolver.so.0"
-    "/opt/rocm/rocsparse/lib/librocsparse.so.0"
-    "/opt/rocm/roctracer/lib/libroctracer64.so.1"
-    "/opt/rocm/roctracer/lib/libroctx64.so.1"
-    "$LIBGOMP_PATH"
-    "$LIBNUMA_PATH"
-    "$LIBELF_PATH"
-    "$LIBTINFO_PATH"
-)
-
-DEPS_SONAME=(
-    "libMIOpen.so.1"
-    "libamdhip64.so.4"
-    "libhipblas.so.0"
-    "libhipfft.so"
-    "libhiprand.so.1"
-    "libhipsparse.so.0"
-    "libhsa-runtime64.so.1"
-    "libamd_comgr.so.2"
-    "libhsakmt.so.1"
-    "libmagma.so"
-    "librccl.so.1"
-    "librocblas.so.0"
-    "librocfft-device-misc.so.0"
-    "librocfft-device-single.so.0"
-    "librocfft-device-double.so.0"
-    "librocfft.so.0"
-    "librocrand.so.1"
-    "librocsolver.so.0"
-    "librocsparse.so.0"
-    "libroctracer64.so.1"
-    "libroctx64.so.1"
-    "libgomp.so.1"
-    "libnuma.so.1"
-    "libelf.so.1"
-    "libtinfo.so.5"
-)
-fi
 
 DEPS_AUX_SRCLIST=(
     "${ROCBLAS_LIB_FILES[@]/#/$ROCBLAS_LIB_SRC/}"
