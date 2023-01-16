@@ -283,9 +283,7 @@ for pkg in /$LIBTORCH_HOUSE_DIR/libtorch*.zip; do
                 cp $filepath $destpath
             fi
             
-            if [[ "$DESIRED_CUDA" == *"rocm"* ]]; then
-                patchedpath=$(fname_without_so_number $destpath)
-            else
+            if [[ "$DESIRED_CUDA" != *"rocm"* ]]; then
                 patchedpath=$(fname_with_sha256 $destpath)
             fi
             patchedname=$(basename $patchedpath)
@@ -303,7 +301,7 @@ for pkg in /$LIBTORCH_HOUSE_DIR/libtorch*.zip; do
                 patchedname=${patched[i]}
                 if [[ "$origname" != "$patchedname" ]] || [[ "$DESIRED_CUDA" == *"rocm"* ]]; then
                     set +e
-                    origname=$($PATCHELF_BIN --print-needed $sofile | grep "$origname*") 
+                    $PATCHELF_BIN --print-needed $sofile | grep "$origname"
                     ERRCODE=$?
                     set -e
                     if [ "$ERRCODE" -eq "0" ]; then
