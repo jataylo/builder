@@ -283,9 +283,8 @@ for pkg in /$LIBTORCH_HOUSE_DIR/libtorch*.zip; do
                 cp $filepath $destpath
             fi
             
-            if [[ "$DESIRED_CUDA" != *"rocm"* ]]; then
-                patchedpath=$(fname_with_sha256 $destpath)
-            fi
+            patchedpath=$(fname_with_sha256 $destpath)
+            
             patchedname=$(basename $patchedpath)
             if [[ "$destpath" != "$patchedpath" ]]; then
                 mv $destpath $patchedpath
