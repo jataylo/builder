@@ -143,6 +143,8 @@ RUN yum install -y devtoolset-${DEVTOOLSET_VERSION}-gcc devtoolset-${DEVTOOLSET_
 ENV PATH=/opt/rh/devtoolset-${DEVTOOLSET_VERSION}/root/usr/bin:$PATH
 ENV LD_LIBRARY_PATH=/opt/rh/devtoolset-${DEVTOOLSET_VERSION}/root/usr/lib64:/opt/rh/devtoolset-${DEVTOOLSET_VERSION}/root/usr/lib:$LD_LIBRARY_PATH
 
+# cmake is already installed inside the rocm base image, so remove if present
+RUN rpm -e cmake || true
 # cmake-3.18.4 from pip
 RUN yum install -y python3-pip && \
     python3 -mpip install cmake==3.18.4 && \
@@ -157,7 +159,7 @@ RUN rm -rf /usr/local/cuda-${BASE_CUDA_VERSION}
 COPY --from=cuda     /usr/local/cuda-${BASE_CUDA_VERSION}  /usr/local/cuda-${BASE_CUDA_VERSION}
 COPY --from=magma    /usr/local/cuda-${BASE_CUDA_VERSION}  /usr/local/cuda-${BASE_CUDA_VERSION}
 
-FROM common as rocm_final
+FROM cpu_final as rocm_final
 ARG ROCM_VERSION=3.7
 ARG PYTORCH_ROCM_ARCH
 ENV PYTORCH_ROCM_ARCH ${PYTORCH_ROCM_ARCH}
@@ -168,3 +170,5 @@ ADD ./common/install_rocm_drm.sh install_rocm_drm.sh
 RUN bash ./install_rocm_drm.sh && rm install_rocm_drm.sh
 ADD ./common/install_rocm_magma.sh install_rocm_magma.sh
 RUN bash ./install_rocm_magma.sh && rm install_rocm_magma.sh
+# cmake3 is needed for the MIOpen build
+RUN ln -sf /usr/local/bin/cmake /usr/bin/cmake3
