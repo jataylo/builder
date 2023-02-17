@@ -99,7 +99,7 @@ cmake -P install_deps.cmake --minimum
 ## Build MIOpen
 mkdir -p build
 cd build
-PKG_CONFIG_PATH=/usr/local/lib/pkgconfig CXX=${ROCM_INSTALL_PATH}/llvm/bin/clang++ cmake .. \
+PKG_CONFIG_PATH=/usr/local/lib/pkgconfig CXX=/opt/rocm-5.5.0-11552/llvm/bin/clang++ cmake .. \
     ${MIOPEN_CMAKE_COMMON_FLAGS} \
     ${MIOPEN_CMAKE_DB_FLAGS} \
     -DCMAKE_PREFIX_PATH="${ROCM_INSTALL_PATH}/hip;${ROCM_INSTALL_PATH}"
