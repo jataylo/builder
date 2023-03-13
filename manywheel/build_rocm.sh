@@ -3,7 +3,8 @@
 set -ex
 
 export ROCM_HOME=/opt/rocm
-export MAGMA_HOME=$ROCM_HOME/magma
+export CONDA_HOME=/opt/conda
+export MAGMA_HOME=$CONDA_HOME/magma
 # TODO: libtorch_cpu.so is broken when building with Debug info
 export BUILD_DEBUG_INFO=0
 
@@ -81,7 +82,6 @@ ROCM_SO_FILES=(
     "libhipsparse.so"
     "libhsa-runtime64.so"
     "libamd_comgr.so"
-    "libmagma.so"
     "librccl.so"
     "librocblas.so"
     "librocfft.so"
@@ -177,11 +177,13 @@ done
 DEPS_LIST=(
     ${ROCM_SO_PATHS[*]}
     ${OS_SO_PATHS[*]}
+    "/opt/conda/magma/lib/libmagma.so"
 )
 
 DEPS_SONAME=(
     ${ROCM_SO_FILES[*]}
     ${OS_SO_FILES[*]}
+    "libmagma.so"
 )
 
 DEPS_AUX_SRCLIST=(

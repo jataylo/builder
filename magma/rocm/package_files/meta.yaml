@@ -1,0 +1,26 @@
+package:
+  name: "{{ environ.get('PACKAGE_NAME') }}"
+  version: "c62d70"
+
+source:
+  git_url: https://bitbucket.org/icl/magma.git
+  git_tag: c62d700d880c7283b33fb1d615d62fc9c7f7ca21
+
+build:
+  number: 1
+
+# Remove in future
+post-link:
+        - mkdir /opt/conda/magma
+        - mkdir /opt/conda/magma/lib
+        - mkdir /opt/conda/magma/include
+        - cp -r {{ PKG_NAME }}-{{ PKG_VERSION }}/lib/* /opt/conda/magma/lib/
+        - cp -r {{ PKG_NAME }}-{{ PKG_VERSION }}/include/* /opt/conda/magma/include/
+
+about:
+  home: https://bitbucket.org/icl/magma.git
+  license: BSD-3-Clause
+  summary: Magma linear algebra library on ROCm
+  description: |
+    Magma is a linear algebra library that provides routines for solving dense and sparse linear systems of equations, and for solving eigenvalue problems. This package provides a build of Magma for ROCm, the open-source software platform for AMD GPUs.
+
