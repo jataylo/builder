@@ -1,5 +1,5 @@
 DOCKER_RUN = docker run -it \
-	-v /home/jactaylo/mag-wheel/pr2:/builder \
+	-v /home/jactaylo/build-pr-magma/builder/magma/rocm:/builder \
 	-w /builder \
 	-e ROCM_VERSION=${ROCM_VERSION} \
 	-e PACKAGE_NAME=${PACKAGE_NAME} \
