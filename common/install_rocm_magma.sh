@@ -1,35 +1,76 @@
-#!/usr/bin/env bash
-
 #!/bin/bash
 
 set -ex
 
-function do_install() {
+function install_magma_source() {
+    # TODO upstream differences from this file is into the (eventual) one in pytorch
+    # - (1) check for static lib mkl
+    # - (2) MKLROOT as env var
+
+    # TODO (2)
+    MKLROOT=${MKLROOT:-/opt/intel}
+
+    # "install" hipMAGMA into /opt/rocm/magma by copying after build
+    git clone https://bitbucket.org/icl/magma.git
+    pushd magma
+    # fix for magma_queue memory leak issue
+    git checkout c62d700d880c7283b33fb1d615d62fc9c7f7ca21
+    cp make.inc-examples/make.inc.hip-gcc-mkl make.inc
+    echo 'LIBDIR += -L$(MKLROOT)/lib' >> make.inc
+    # TODO (1)
+    if [[ -f "${MKLROOT}/lib/libmkl_core.a" ]]; then
+        echo 'LIB = -Wl,--start-group -lmkl_gf_lp64 -lmkl_gnu_thread -lmkl_core -Wl,--end-group -lpthread -lstdc++ -lm -lgomp -lhipblas -lhipsparse' >> make.inc
+    fi
+    echo 'LIB += -Wl,--enable-new-dtags -Wl,--rpath,/opt/rocm/lib -Wl,--rpath,$(MKLROOT)/lib -Wl,--rpath,/opt/rocm/magma/lib -ldl' >> make.inc
+    echo 'DEVCCFLAGS += --gpu-max-threads-per-block=256' >> make.inc
+    export PATH="${PATH}:/opt/rocm/bin"
+    if [[ -n "$PYTORCH_ROCM_ARCH" ]]; then
+    amdgpu_targets=`echo $PYTORCH_ROCM_ARCH | sed 's/;/ /g'`
+    else
+    amdgpu_targets=`rocm_agent_enumerator | grep -v gfx000 | sort -u | xargs`
+    fi
+    for arch in $amdgpu_targets; do
+    echo "DEVCCFLAGS += --amdgpu-target=$arch" >> make.inc
+    done
+    # hipcc with openmp flag may cause isnan() on __device__ not to be found; depending on context, compiler may attempt to match with host definition
+    sed -i 's/^FOPENMP/#FOPENMP/g' make.inc
+    make -f make.gen.hipMAGMA -j $(nproc)
+    LANG=C.UTF-8 make lib/libmagma.so -j $(nproc) MKLROOT="${MKLROOT}"
+    make testing/testing_dgemm -j $(nproc) MKLROOT="${MKLROOT}"
+    popd
+    mkdir -p /opt/rocm/magma
+    mv magma/include /opt/rocm/magma
+    mv magma/lib /opt/rocm/magma
+    rm -rf magma
+}
+
+function install_magma_package() {
 
     MAGMA_VERSION="2.6.2"
-
-    # Temporary hard coded addresses
-    if [[ $ROCM_VERSION == 5.5 ]]; then
-        magma_archive="https://compute-artifactory.amd.com/artifactory/rocm-pytorch-conda/rocm-pkgs/35/linux-64/magma-rocm-2.6.2-+RC5_44_35.tar.bz2"
-    elif [[ $ROCM_VERSION == 5.4 ]]; then
-        magma_archive="https://compute-artifactory.amd.com/artifactory/rocm-pytorch-conda/rocm-pkgs/11/linux-64/magma-rocm-2.6.2-+rel_11.tar.bz2"
-    elif [[ $ROCM_VERSION == 5.3 ]]; then
-        magma_archive="https://compute-artifactory.amd.com/artifactory/rocm-pytorch-conda/rocm-pkgs/7/linux-64/magma-rocm-2.6.2-+dev_7.tar.bz2"
-    else
-        echo "Unhandled ROCM_VERSION ${ROCM_VERSION}"
-        exit 1
-    fi
-
     rocm_path="/opt/rocm/"
     tmp_dir=$(mktemp -d)
     pushd ${tmp_dir}
-    wget --no-check-certificate -q $magma_archive
+    wget --no-check-certificate -q $MAGMA_PACKAGE_SOURCE
     mkdir -p "${rocm_path}/magma"
     mv $tmp_dir/magma/include "${rocm_path}/magma/include"
-    mv $tmp_dir/magma/lib "${rocm_path}/magma/lib"
-    echo "$tmp_dir/magma/include"
-    echo "$rocm_path/magma/include"
-    echo "$tmp_dir/magma/lib"
-    echo "$rocm_path/magma/lib"
+    mv $tmp_dir/magma/lib/libmagma.so "${rocm_path}/magma/lib/libmagma.so"
     popd
+
+    if [ ! -d "${rocm_path}/magma" ]; then
+        echo "Error: MAGMA installation failed"
+        exit 1
+    fi
+
+    echo "MAGMA_PACKAGE_SOURCE: $MAGMA_PACKAGE_SOURCE"
+    echo "MAGMA_VERSION: $MAGMA_VERSION"
+    echo "rocm_path: $rocm_path"
+    echo "tmp_dir: $tmp_dir"
 }
+
+if [[ -z "$MAGMA_PACKAGE_SOURCE" ]]; then
+    echo "MAGMA_PACKAGE_SOURCE is not set, building magma from source"
+    install_magma_package
+else
+    echo "MAGMA_PACKAGE_SOURCE is set, installing magma from source"
+    install_magma_source
+fi
