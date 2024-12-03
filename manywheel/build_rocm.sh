@@ -234,7 +234,16 @@ fi
 # No triton dependency for now on 3.12 since we don't have binaries for it
 # and torch.compile doesn't work.
 if [[ $(uname) == "Linux" && "$DESIRED_PYTHON" != "3.12" ]]; then
-    TRITON_SHORTHASH=$(cut -c1-10 $PYTORCH_ROOT/.ci/docker/ci_commit_pins/triton-rocm.txt)
+   
+    # As of release 2.5 we have dropped triton-rocm.txt, this code should ensure builder is backwards compatible
+    TRITON_PIN_FILE="triton-rocm.txt"
+    TRITON_PIN_ROOT="$PYTORCH_ROOT/.ci/docker/ci_commit_pins"
+
+    if [ -e "$TRITON_PIN_ROOT/$TRITON_PIN_FILE" ]; then 
+        TRITON_SHORTHASH=$(cut -c1-10 $TRITON_PIN_ROOT/$TRITON_PIN_FILE)
+    else
+        TRITON_SHORTHASH=$(cut -c1-10 $TRITON_PIN_ROOT/triton.txt)
+        
     TRITON_VERSION=$(cat $PYTORCH_ROOT/.ci/docker/triton_version.txt)
 
     if [[ -z "$PYTORCH_EXTRA_INSTALL_REQUIREMENTS" ]]; then
